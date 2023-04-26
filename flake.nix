@@ -17,7 +17,7 @@
       inherit (inputs) nixpkgs zig-overlay gitignore flake-utils;
       inherit (gitignore.lib) gitignoreSource;
     in
-    flake-utils.lib.eachDefaultSystem systems (system:
+    flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
         zig = zig-overlay.packages.${system}.master;
@@ -34,7 +34,8 @@
           dontInstall = true;
           buildPhase = ''
             mkdir -p $out
-            zig build install -Dcpu=baseline -Doptimize=ReleaseSafe -Ddata_version=master --prefix $out
+            mkdir -p .cache/{p,z,tmp}
+            zig build install --cache-dir $(pwd)/zig-cache --global-cache-dir $(pwd)/.cache -Dcpu=baseline -Doptimize=ReleaseSafe --prefix $out
           '';
         };
       }
