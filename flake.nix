@@ -38,6 +38,10 @@
             zig build install --cache-dir $(pwd)/zig-cache --global-cache-dir $(pwd)/.cache -Dcpu=baseline -Doptimize=ReleaseSafe --prefix $out
           '';
         };
+        apps = rec {
+          remove-trash = { type = "app"; program = "${packages.remove-trash}/bin/remove-trash"; };
+          default = remove-trash;
+        };
       }
     );
 }
