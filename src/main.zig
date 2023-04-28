@@ -16,11 +16,14 @@ pub fn main() !void {
     var walker = try cwd.walk(allocator);
     defer walker.deinit();
 
+    var tmpsize: u64 = 0;
     var size: u64 = 0;
     var err: usize = 0;
     while (err < 3) {
+        tmpsize = 0;
+
         const next = walker.next() catch {
-            std.log.info("Could not walk\n", .{});
+            std.log.info("Could not walk", .{});
             err += 1;
             continue;
         };
@@ -41,35 +44,44 @@ pub fn main() !void {
             std.mem.eql(u8, entry.basename, ".gradle"),
             std.mem.eql(u8, entry.basename, ".cache"),
             std.mem.eql(u8, entry.basename, "build"),
+            std.mem.eql(u8, entry.basename, "_build"),
             std.mem.eql(u8, entry.basename[last_four..], ".bak"),
             entry.basename[0] == '~',
         };
 
-        if (@reduce(.Or, @as(@Vector(11, bool), conditions))) {
+        if (@reduce(.Or, @as(@Vector(12, bool), conditions))) {
             const entry_path = entry.dir.realpathAlloc(allocator, entry.basename) catch {
-                std.log.info("Could not get path for {s}\n", .{entry.path});
+                const stat = entry.dir.statFile(entry.basename) catch {
+                    std.log.info("Could not get path for {s}", .{entry.path});
+                    continue;
+                };
+                if (stat.kind != std.fs.File.Kind.SymLink) {
+                    std.log.info("Could not get path for {s}", .{entry.path});
+                }
                 continue;
             };
             defer allocator.free(entry_path);
 
             if (entry.kind == .File) {
                 var file = entry.dir.statFile(entry.basename) catch {
-                    std.log.info("Could not stat {s}\n", .{entry_path});
+                    std.log.info("Could not stat {s}", .{entry_path});
                     continue;
                 };
 
-                size += file.size;
+                tmpsize = file.size;
+                size += tmpsize;
 
                 entry.dir.deleteFile(entry.basename) catch {
-                    std.log.info("Could not delete {s}\n", .{entry_path});
+                    std.log.info("Could not delete {s}", .{entry_path});
+                    size -= tmpsize;
                 };
             } else if (entry.kind == .Directory) {
-                var sub_iter = entry.dir.openIterableDir(".", .{}) catch {
-                    std.log.info("Could not open iterable for {s}\n", .{entry_path});
+                var sub_iter = entry.dir.openIterableDir(entry.basename, .{}) catch {
+                    std.log.info("Could not open iterable for {s}", .{entry_path});
                     continue;
                 };
                 var sub_walker = sub_iter.walk(allocator) catch {
-                    std.log.info("Could not walk {s}\n", .{entry_path});
+                    std.log.info("Could not walk {s}", .{entry_path});
                     continue;
                 };
                 defer sub_iter.close();
@@ -78,7 +90,7 @@ pub fn main() !void {
                 var err_sub: usize = 0;
                 while (err_sub < 3) {
                     const sub_next = sub_walker.next() catch {
-                        std.log.info("Could not walk next {s}\n", .{entry_path});
+                        std.log.info("Could not walk next {s}", .{entry_path});
                         err_sub += 1;
                         continue;
                     };
@@ -90,23 +102,31 @@ pub fn main() !void {
                     const sub_entry = sub_next.?;
 
                     const sub_entry_path = sub_entry.dir.realpathAlloc(allocator, sub_entry.basename) catch {
-                        std.log.info("Could not get path for {s}\n", .{sub_entry.path});
+                        const stat = sub_entry.dir.statFile(sub_entry.basename) catch {
+                            std.log.info("Catch Could not get path for {s}:{s}", .{ entry.path, sub_entry.path });
+                            continue;
+                        };
+                        if (stat.kind != std.fs.File.Kind.SymLink) {
+                            std.log.info("SymLink Could not get path for {s}", .{sub_entry.path});
+                        }
                         continue;
                     };
                     defer allocator.free(sub_entry_path);
 
                     if (sub_entry.kind == .File) {
                         var file = sub_entry.dir.statFile(sub_entry.basename) catch {
-                            std.log.info("Could not stat {s}\n", .{sub_entry_path});
+                            std.log.info("Could not stat {s}", .{sub_entry_path});
                             continue;
                         };
 
+                        tmpsize += file.size;
                         size += file.size;
                     }
                 }
 
                 entry.dir.deleteTree(entry.basename) catch {
-                    std.log.info("Could not delete {s}\n", .{entry_path});
+                    std.log.info("Could not delete {s}", .{entry_path});
+                    size -= tmpsize;
                 };
             }
         }
