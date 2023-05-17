@@ -34,6 +34,7 @@ pub fn main() !void {
 
         const entry = next.?;
         const last_four = if (entry.basename.len > 4) entry.basename.len - 4 else 0;
+        const last_five = if (entry.basename.len > 5) entry.basename.len - 5 else 0;
         const conditions = [_]bool{
             std.mem.eql(u8, entry.basename, ".DS_Store"),
             std.mem.eql(u8, entry.basename, "Thumbs.db"),
@@ -45,11 +46,13 @@ pub fn main() !void {
             std.mem.eql(u8, entry.basename, ".cache"),
             std.mem.eql(u8, entry.basename, "build"),
             std.mem.eql(u8, entry.basename, "_build"),
+            std.mem.eql(u8, entry.basename, "slprj"),
             std.mem.eql(u8, entry.basename[last_four..], ".bak"),
+            std.mem.eql(u8, entry.basename[last_five..], ".slxc"),
             entry.basename[0] == '~',
         };
 
-        if (@reduce(.Or, @as(@Vector(12, bool), conditions))) {
+        if (@reduce(.Or, @as(@Vector(14, bool), conditions))) {
             const entry_path = entry.dir.realpathAlloc(allocator, entry.basename) catch {
                 const stat = entry.dir.statFile(entry.basename) catch {
                     std.log.info("Could not get path for {s}", .{entry.path});
