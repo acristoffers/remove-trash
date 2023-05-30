@@ -58,14 +58,14 @@ pub fn main() !void {
                     std.log.info("Could not get path for {s}", .{entry.path});
                     continue;
                 };
-                if (stat.kind != std.fs.File.Kind.SymLink) {
+                if (stat.kind != std.fs.File.Kind.sym_link) {
                     std.log.info("Could not get path for {s}", .{entry.path});
                 }
                 continue;
             };
             defer allocator.free(entry_path);
 
-            if (entry.kind == .File) {
+            if (entry.kind == .file) {
                 var file = entry.dir.statFile(entry.basename) catch {
                     std.log.info("Could not stat {s}", .{entry_path});
                     continue;
@@ -78,7 +78,7 @@ pub fn main() !void {
                     std.log.info("Could not delete {s}", .{entry_path});
                     size -= tmpsize;
                 };
-            } else if (entry.kind == .Directory) {
+            } else if (entry.kind == .directory) {
                 var sub_iter = entry.dir.openIterableDir(entry.basename, .{}) catch {
                     std.log.info("Could not open iterable for {s}", .{entry_path});
                     continue;
@@ -109,14 +109,14 @@ pub fn main() !void {
                             std.log.info("Catch Could not get path for {s}:{s}", .{ entry.path, sub_entry.path });
                             continue;
                         };
-                        if (stat.kind != std.fs.File.Kind.SymLink) {
+                        if (stat.kind != std.fs.File.Kind.sym_link) {
                             std.log.info("SymLink Could not get path for {s}", .{sub_entry.path});
                         }
                         continue;
                     };
                     defer allocator.free(sub_entry_path);
 
-                    if (sub_entry.kind == .File) {
+                    if (sub_entry.kind == .file) {
                         var file = sub_entry.dir.statFile(sub_entry.basename) catch {
                             std.log.info("Could not stat {s}", .{sub_entry_path});
                             continue;
