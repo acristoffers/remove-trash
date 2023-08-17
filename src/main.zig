@@ -33,6 +33,23 @@ pub fn main() !void {
         }
 
         const entry = next.?;
+
+        const entry_path = entry.dir.realpathAlloc(allocator, entry.basename) catch {
+            const stat = entry.dir.statFile(entry.basename) catch {
+                std.log.info("Could not get path for {s}", .{entry.path});
+                continue;
+            };
+            if (stat.kind != std.fs.File.Kind.sym_link) {
+                std.log.info("Could not get path for {s}", .{entry.path});
+            }
+            continue;
+        };
+        defer allocator.free(entry_path);
+
+        if (std.mem.containsAtLeast(u8, entry_path, 1, "/.var/")) {
+            continue;
+        }
+
         const last_four = if (entry.basename.len > 4) entry.basename.len - 4 else 0;
         const last_five = if (entry.basename.len > 5) entry.basename.len - 5 else 0;
         const conditions = [_]bool{
@@ -53,18 +70,6 @@ pub fn main() !void {
         };
 
         if (@reduce(.Or, @as(@Vector(14, bool), conditions))) {
-            const entry_path = entry.dir.realpathAlloc(allocator, entry.basename) catch {
-                const stat = entry.dir.statFile(entry.basename) catch {
-                    std.log.info("Could not get path for {s}", .{entry.path});
-                    continue;
-                };
-                if (stat.kind != std.fs.File.Kind.sym_link) {
-                    std.log.info("Could not get path for {s}", .{entry.path});
-                }
-                continue;
-            };
-            defer allocator.free(entry_path);
-
             if (entry.kind == .file) {
                 var file = entry.dir.statFile(entry.basename) catch {
                     std.log.info("Could not stat {s}", .{entry_path});
