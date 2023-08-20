@@ -48,6 +48,8 @@ pub fn main() !void {
 
         if (std.mem.containsAtLeast(u8, entry_path, 1, "/.var/")) {
             continue;
+        } else if (std.mem.containsAtLeast(u8, entry_path, 1, "/steamapps/")) {
+            continue;
         }
 
         const last_four = if (entry.basename.len > 4) entry.basename.len - 4 else 0;
