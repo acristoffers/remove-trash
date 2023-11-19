@@ -66,12 +66,14 @@ pub fn main() !void {
             std.mem.eql(u8, entry.basename, "build"),
             std.mem.eql(u8, entry.basename, "_build"),
             std.mem.eql(u8, entry.basename, "slprj"),
+            std.mem.eql(u8, entry.basename, "zig-cache"),
+            std.mem.eql(u8, entry.basename, "zig-out"),
             std.mem.eql(u8, entry.basename[last_four..], ".bak"),
             std.mem.eql(u8, entry.basename[last_five..], ".slxc"),
             entry.basename[0] == '~',
         };
 
-        if (@reduce(.Or, @as(@Vector(14, bool), conditions))) {
+        if (@reduce(.Or, @as(@Vector(16, bool), conditions))) {
             if (entry.kind == .file) {
                 var file = entry.dir.statFile(entry.basename) catch {
                     std.log.info("Could not stat {s}", .{entry_path});
