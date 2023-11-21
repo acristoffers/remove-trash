@@ -75,7 +75,7 @@ pub fn main() !void {
 
         if (@reduce(.Or, @as(@Vector(16, bool), conditions))) {
             if (entry.kind == .file) {
-                var file = entry.dir.statFile(entry.basename) catch {
+                const file = entry.dir.statFile(entry.basename) catch {
                     std.log.info("Could not stat {s}", .{entry_path});
                     continue;
                 };
@@ -126,7 +126,7 @@ pub fn main() !void {
                     defer allocator.free(sub_entry_path);
 
                     if (sub_entry.kind == .file) {
-                        var file = sub_entry.dir.statFile(sub_entry.basename) catch {
+                        const file = sub_entry.dir.statFile(sub_entry.basename) catch {
                             std.log.info("Could not stat {s}", .{sub_entry_path});
                             continue;
                         };
