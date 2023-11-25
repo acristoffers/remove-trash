@@ -9,7 +9,7 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     const path = try std.fs.realpathAlloc(allocator, if (args.len > 1) args[1] else ".");
-    var cwd = try std.fs.openIterableDirAbsolute(path, .{});
+    var cwd = try std.fs.openDirAbsolute(path, .{ .iterate = true });
     defer allocator.free(path);
     defer cwd.close();
 
@@ -88,7 +88,7 @@ pub fn main() !void {
                     size -= tmpsize;
                 };
             } else if (entry.kind == .directory) {
-                var sub_iter = entry.dir.openIterableDir(entry.basename, .{}) catch {
+                var sub_iter = entry.dir.openDir(entry.basename, .{}) catch {
                     std.log.info("Could not open iterable for {s}", .{entry_path});
                     continue;
                 };
