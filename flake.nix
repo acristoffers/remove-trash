@@ -1,15 +1,18 @@
 {
   inputs =
     {
-      nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+      nixpkgs.url = github:NixOS/nixpkgs/nixpkgs-unstable;
 
-      zig-overlay.url = "github:mitchellh/zig-overlay";
+      zig-overlay.url = github:mitchellh/zig-overlay;
       zig-overlay.inputs.nixpkgs.follows = "nixpkgs";
 
-      gitignore.url = "github:hercules-ci/gitignore.nix";
+      gitignore.url = github:hercules-ci/gitignore.nix;
       gitignore.inputs.nixpkgs.follows = "nixpkgs";
 
-      flake-utils.url = "github:numtide/flake-utils";
+      pcre2.url = github:PCRE2Project/pcre2/86919c90182854b5369bc10d5ad43b637f464f50;
+      pcre2.flake = false;
+
+      flake-utils.url = github:numtide/flake-utils;
     };
 
   outputs = inputs:
@@ -19,23 +22,28 @@
     in
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs { inherit system; };
         zig = zig-overlay.packages.${system}.master;
       in
       rec {
-        formatter = nixpkgs.legacyPackages.${system}.nixpkgs-fmt;
+        formatter = pkgs.nixpkgs-fmt;
         packages.default = packages.remove-trash;
         packages.remove-trash = pkgs.stdenvNoCC.mkDerivation {
           name = "remove-trash";
           version = "master";
           src = gitignoreSource ./.;
-          nativeBuildInputs = [ zig ];
+          nativeBuildInputs = with pkgs; [ autoPatchelfHook zig ];
           dontConfigure = true;
           dontInstall = true;
+          doPatchElf = true;
           buildPhase = ''
             mkdir -p $out
             mkdir -p .cache/{p,z,tmp}
-            zig build install --cache-dir $(pwd)/zig-cache --global-cache-dir $(pwd)/.cache -Dcpu=baseline -Doptimize=ReleaseSafe --prefix $out
+            cp -Lr ${inputs.pcre2} lib/pcre2
+            chmod +rw -R lib/pcre2
+            sh fix-zig-in-pcre2.sh
+            zig build install --cache-dir $(pwd)/zig-cache --global-cache-dir $(pwd)/.cache -Doptimize=ReleaseSafe --prefix $out
+            # patchelf --set-interpreter ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 $out/bin/remove-trash
           '';
         };
         apps = rec {
