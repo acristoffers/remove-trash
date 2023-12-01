@@ -43,7 +43,6 @@
             chmod +rw -R lib/pcre2
             sh fix-zig-in-pcre2.sh
             zig build install --cache-dir $(pwd)/zig-cache --global-cache-dir $(pwd)/.cache -Doptimize=ReleaseSafe --prefix $out
-            # patchelf --set-interpreter ${pkgs.glibc}/lib64/ld-linux-x86-64.so.2 $out/bin/remove-trash
           '';
         };
         apps = rec {
