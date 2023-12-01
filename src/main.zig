@@ -28,6 +28,20 @@ pub fn main() !void {
     defer allocator.free(path);
     defer cwd.close();
 
+    const env_map = try allocator.create(std.process.EnvMap);
+    env_map.* = try std.process.getEnvMap(allocator);
+    defer env_map.deinit();
+
+    const userFolder = env_map.get("HOME") orelse {
+        std.log.err("A HOME environment variable is necessary to avoid removing ~/.var", .{});
+        std.os.exit(1);
+    };
+    const skipFolders = [_][]const u8{
+        try std.fmt.allocPrint(allocator, "{s}/.var", .{userFolder}),
+        try std.fmt.allocPrint(allocator, "{s}/.local/share/Steam", .{userFolder}),
+        try std.fmt.allocPrint(allocator, "{s}/.steam", .{userFolder}),
+    };
+
     var walker = try cwd.walk(allocator);
     defer walker.deinit();
 
@@ -83,6 +97,12 @@ pub fn main() !void {
         };
         defer allocator.free(dirPath);
         const entry_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dirPath, entry.basename });
+
+        for (skipFolders) |skip| {
+            if (entry_path.len >= skip.len and std.mem.eql(u8, skip, entry_path[0..skip.len])) {
+                continue :blk;
+            }
+        }
 
         for (regexes.items) |regex| {
             const match_data = pcre2.pcre2_match_data_create_from_pattern_8(regex, null);
