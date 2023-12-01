@@ -24,6 +24,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         zig = zig-overlay.packages.${system}.master;
+        isLinux = nixpkgs.lib.hasPrefix "linux" system;
       in
       rec {
         formatter = pkgs.nixpkgs-fmt;
@@ -32,7 +33,10 @@
           name = "remove-trash";
           version = "master";
           src = gitignoreSource ./.;
-          nativeBuildInputs = with pkgs; [ autoPatchelfHook zig ];
+          nativeBuildInputs = with pkgs; (if isLinux then [
+            autoPatchelfHook
+            zig
+          ] else [ zig ]);
           dontConfigure = true;
           dontInstall = true;
           doPatchElf = true;
