@@ -24,7 +24,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
         zig = zig-overlay.packages.${system}.master;
-        isLinux = nixpkgs.lib.hasPrefix "linux" system;
+        isLinux = nixpkgs.lib.hasSuffix "linux" system;
       in
       rec {
         formatter = pkgs.nixpkgs-fmt;
