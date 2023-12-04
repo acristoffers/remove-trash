@@ -14,7 +14,8 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const path = args.getPath(allocator) orelse return;
+    const options = args.parseArguments(allocator) orelse return;
+    const path = options.path;
     defer allocator.free(path);
 
     var filesToDelete = StringLIFO{};
@@ -82,9 +83,14 @@ pub fn main() !void {
         };
         size += stat.size;
         file.close();
-        dir.deleteFile(filePath) catch |err| {
-            try std.io.getStdErr().writer().print("Could not delete {s} ({})\n", .{ filePath, err });
-        };
+
+        if (options.dryRun) {
+            try std.io.getStdOut().writer().print("{s}\n", .{filePath});
+        } else {
+            dir.deleteFile(filePath) catch |err| {
+                try std.io.getStdErr().writer().print("Could not delete {s} ({})\n", .{ filePath, err });
+            };
+        }
     }
 
     while (specialFilesToDelete.popFirst()) |node| {
@@ -92,9 +98,13 @@ pub fn main() !void {
         defer allocator.free(node.data);
 
         const filePath = node.data;
-        dir.deleteFile(filePath) catch {
-            try std.io.getStdErr().writer().print("Could not delete {s}\n", .{filePath});
-        };
+        if (options.dryRun) {
+            try std.io.getStdOut().writer().print("{s}\n", .{filePath});
+        } else {
+            dir.deleteFile(filePath) catch {
+                try std.io.getStdErr().writer().print("Could not delete {s}\n", .{filePath});
+            };
+        }
     }
 
     while (foldersToDelete.popFirst()) |node| {
@@ -102,9 +112,13 @@ pub fn main() !void {
         defer allocator.free(node.data);
 
         const filePath = node.data;
-        dir.deleteDir(filePath) catch {
-            try std.io.getStdErr().writer().print("Could not delete {s}\n", .{filePath});
-        };
+        if (options.dryRun) {
+            try std.io.getStdOut().writer().print("{s}\n", .{filePath});
+        } else {
+            dir.deleteDir(filePath) catch {
+                try std.io.getStdErr().writer().print("Could not delete {s}\n", .{filePath});
+            };
+        }
     }
 
     try std.io.getStdOut().writer().print("Freed {:.2}\n", .{std.fmt.fmtIntSizeBin(size)});

@@ -44,19 +44,12 @@ pub const Filter = struct {
             try trashRegexes.append(regex);
         }
 
-        var env_map = try std.process.getEnvMap(allocator);
-        defer env_map.deinit();
-
-        const userFolder = env_map.get("HOME") orelse {
-            try std.io.getStdErr().writer().print("A HOME environment variable is necessary to avoid removing ~/.var\n", .{});
-            std.os.exit(1);
-        };
-
         var skipFolders = std.ArrayList([]const u8).init(allocator);
-        const sprintf = std.fmt.allocPrint;
-        try skipFolders.append(try sprintf(allocator, "{s}/.var", .{userFolder}));
-        try skipFolders.append(try sprintf(allocator, "{s}/.local/share/Steam", .{userFolder}));
-        try skipFolders.append(try sprintf(allocator, "{s}/.steam", .{userFolder}));
+        try skipFolders.append(".git");
+        try skipFolders.append(".var");
+        try skipFolders.append("Steam");
+        try skipFolders.append(".steam");
+        try skipFolders.append("containers");
 
         return Self{
             .allocator = allocator,
@@ -69,14 +62,11 @@ pub const Filter = struct {
         for (self.trashRegexes.items) |regex| {
             pcre2.pcre2_code_free_8(regex);
         }
-        for (self.skipFolders.items) |skip| {
-            self.allocator.free(skip);
-        }
         self.trashRegexes.deinit();
         self.skipFolders.deinit();
     }
 
-    pub fn shouldDelete(self: Self, path: []const u8) bool {
+    pub fn shouldDelete(self: Self, basename: []const u8) bool {
         for (self.trashRegexes.items) |regex| {
             const match_data = pcre2.pcre2_match_data_create_from_pattern_8(regex, null);
             defer pcre2.pcre2_match_data_free_8(match_data);
@@ -86,7 +76,7 @@ pub const Filter = struct {
                 std.os.exit(1);
             }
 
-            const rc = pcre2.pcre2_match_8(regex, path.ptr, path.len, 0, 0, match_data.?, null);
+            const rc = pcre2.pcre2_match_8(regex, basename.ptr, basename.len, 0, 0, match_data.?, null);
             if (rc > 0) {
                 return true;
             }
@@ -94,9 +84,9 @@ pub const Filter = struct {
         return false;
     }
 
-    pub fn shouldSkip(self: Self, path: []const u8) bool {
+    pub fn shouldSkip(self: Self, basename: []const u8) bool {
         for (self.skipFolders.items) |skip| {
-            if (std.mem.startsWith(u8, path, skip)) {
+            if (std.mem.eql(u8, basename, skip)) {
                 return true;
             }
         }

@@ -16,6 +16,7 @@ pub const Walker = struct {
 
     stackDepth: usize,
     markedPath: []u8,
+    markedPathLen: usize,
     action: WalkResult,
 
     pub fn init(allocator: std.mem.Allocator, path: []const u8) !Self {
@@ -29,6 +30,7 @@ pub const Walker = struct {
             .stackDepth = 0,
             .action = .verify,
             .markedPath = try allocator.alloc(u8, std.fs.MAX_PATH_BYTES),
+            .markedPathLen = 0,
         };
     }
 
@@ -47,7 +49,7 @@ pub const Walker = struct {
                 self.stackDepth = 0;
                 return .verify;
             } else if (self.stackDepth == self.walker.stack.items.len) {
-                if (std.mem.eql(u8, self.entry.?.path, self.markedPath[0..self.entry.?.path.len])) {
+                if (!std.mem.startsWith(u8, self.entry.?.path, self.markedPath[0..self.markedPathLen])) {
                     self.stackDepth = 0;
                     return .verify;
                 } else {
@@ -64,5 +66,6 @@ pub const Walker = struct {
         self.action = action;
         self.stackDepth = self.walker.stack.items.len;
         @memcpy(self.markedPath[0..self.entry.?.path.len], self.entry.?.path);
+        self.markedPathLen = self.entry.?.path.len;
     }
 };
