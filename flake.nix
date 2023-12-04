@@ -42,7 +42,8 @@
           doPatchElf = true;
           buildPhase = ''
             mkdir -p $out
-            mkdir -p .cache/{p,z,tmp}
+            mkdir -p .cache
+            ln -s ${pkgs.callPackage ./deps.nix { }} .cache/p
             cp -Lr ${inputs.pcre2} lib/pcre2
             chmod +rw -R lib/pcre2
             sh fix-zig-in-pcre2.sh

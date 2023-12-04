@@ -19,6 +19,9 @@ pub fn build(b: *std.build.Builder) void {
     const pcre2 = b.dependency("pcre2", .{}).artifact("pcre2");
     exe.linkLibrary(pcre2);
 
+    const clap = b.dependency("clap", .{}).module("clap");
+    exe.addModule("clap", clap);
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {

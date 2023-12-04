@@ -1,164 +1,109 @@
 const std = @import("std");
-const pcre2 = @cImport({
-    @cDefine("PCRE2_STATIC", "");
-    @cDefine("PCRE2_CODE_UNIT_WIDTH", "8");
-    @cInclude("pcre2.h");
-});
+const args = @import("args.zig");
+const Filter = @import("filter.zig").Filter;
+const Walker = @import("walker.zig").Walker;
 
 const StringLIFO = std.SinglyLinkedList([]const u8);
 
 pub fn main() !void {
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    defer _ = arena.deinit();
-    const allocator = arena.allocator();
+    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    // defer _ = arena.deinit();
+    // const allocator = arena.allocator();
 
-    const args: [][:0]u8 = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
 
-    const path = std.fs.realpathAlloc(allocator, if (args.len > 1) args[1] else ".") catch {
-        if (args.len > 1 and std.mem.eql(u8, "--version", args[1])) {
-            try std.io.getStdOut().writer().print("git-master", .{});
-        } else {
-            try std.io.getStdOut().writer().print("Removes trash files and folders recursively.\n", .{});
-            try std.io.getStdOut().writer().print("Usage: remove-trash [folder]\n", .{});
-        }
-        return;
-    };
-    var cwd = try std.fs.openDirAbsolute(path, .{ .iterate = true });
+    const path = args.getPath(allocator) orelse return;
     defer allocator.free(path);
-    defer cwd.close();
-
-    const env_map = try allocator.create(std.process.EnvMap);
-    env_map.* = try std.process.getEnvMap(allocator);
-    defer env_map.deinit();
-
-    const userFolder = env_map.get("HOME") orelse {
-        std.log.err("A HOME environment variable is necessary to avoid removing ~/.var", .{});
-        std.os.exit(1);
-    };
-    const skipFolders = [_][]const u8{
-        try std.fmt.allocPrint(allocator, "{s}/.var", .{userFolder}),
-        try std.fmt.allocPrint(allocator, "{s}/.local/share/Steam", .{userFolder}),
-        try std.fmt.allocPrint(allocator, "{s}/.steam", .{userFolder}),
-    };
-
-    var walker = try cwd.walk(allocator);
-    defer walker.deinit();
 
     var filesToDelete = StringLIFO{};
     var foldersToDelete = StringLIFO{};
     var specialFilesToDelete = StringLIFO{};
 
-    const conditions = [_][]const u8{
-        "\\/\\.DS_Store$",
-        "\\/\\.cache(\\/|$)",
-        "\\/\\.gradle(\\/|$)",
-        "\\/\\.mypy_cache(\\/|$)",
-        "\\/\\.sass-cache(\\/|$)",
-        "\\/\\.textpadtmp(\\/|$)",
-        "\\/Thumbs.db$",
-        "\\/__pycache__(\\/|$)",
-        "\\/_build(\\/|$)",
-        "\\/build(\\/|$)",
-        "\\/slprj(\\/|$)",
-        "\\/zig-cache(\\/|$)",
-        "\\/zig-out(\\/|$)",
-        "\\/\\.slxc$",
-        "\\/\\.bak$",
-        "~[^\\/]+$",
-    };
+    var filter = try Filter.init(allocator);
+    defer filter.deinit();
 
-    var regexes = std.ArrayList(?*pcre2.struct_pcre2_real_code_8).init(allocator);
-    for (conditions) |condition| {
-        var error_number: c_int = 0;
-        var error_offset: usize = 0;
-        const regex = pcre2.pcre2_compile_8(condition.ptr, condition.len, 0, &error_number, &error_offset, null);
-        if (regex == null) {
-            std.log.err("Could not compile regex {s}.", .{condition});
-            std.os.exit(1);
+    var walker = try Walker.init(allocator, path);
+    defer walker.deinit();
+
+    while (walker.walk()) |action| {
+        const entry = walker.entry;
+        var delete = false;
+        var ignore = false;
+
+        switch (action) {
+            .ignore => continue,
+            .delete => delete = true,
+            .verify => {
+                ignore = filter.shouldSkip(entry.?.basename);
+                delete = !ignore and filter.shouldDelete(entry.?.basename);
+            },
         }
-        try regexes.append(regex);
+
+        if (ignore and entry.?.kind == .directory) {
+            walker.mark(.ignore);
+            continue;
+        }
+
+        if (delete) {
+            const node = allocator.create(StringLIFO.Node) catch continue;
+            const entryPath = allocator.dupe(u8, entry.?.path) catch {
+                allocator.destroy(node);
+                continue;
+            };
+            node.* = StringLIFO.Node{ .data = entryPath };
+            switch (walker.entry.?.kind) {
+                .directory => {
+                    walker.mark(.delete);
+                    foldersToDelete.prepend(node);
+                },
+                .file => filesToDelete.prepend(node),
+                else => specialFilesToDelete.prepend(node),
+            }
+        }
     }
 
-    blk: while (true) {
-        const next = walker.next() catch {
-            continue;
-        };
-
-        if (next == null) {
-            break;
-        }
-
-        const entry = next.?;
-
-        const dirPath = entry.dir.realpathAlloc(allocator, ".") catch |err| {
-            std.log.warn("Could not get path for {s}, {}", .{ entry.path, err });
-            continue;
-        };
-        defer allocator.free(dirPath);
-        const entry_path = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dirPath, entry.basename });
-
-        for (skipFolders) |skip| {
-            if (entry_path.len >= skip.len and std.mem.eql(u8, skip, entry_path[0..skip.len])) {
-                continue :blk;
-            }
-        }
-
-        for (regexes.items) |regex| {
-            const match_data = pcre2.pcre2_match_data_create_from_pattern_8(regex, null);
-            defer pcre2.pcre2_match_data_free_8(match_data);
-
-            if (match_data == null) {
-                std.log.err("Could not create match data.", .{});
-                std.os.exit(1);
-            }
-
-            const rc = pcre2.pcre2_match_8(regex, entry_path.ptr, entry_path.len, 0, 0, match_data.?, null);
-            if (rc > 0) {
-                const node = try allocator.create(StringLIFO.Node);
-                node.* = StringLIFO.Node{ .data = entry_path };
-                switch (entry.kind) {
-                    .directory => foldersToDelete.prepend(node),
-                    .file => filesToDelete.prepend(node),
-                    else => specialFilesToDelete.prepend(node),
-                }
-                continue :blk;
-            }
-        }
-
-        allocator.free(entry_path);
-    }
-
+    const dir = try std.fs.openDirAbsolute(path, .{});
     var size: usize = 0;
     while (filesToDelete.popFirst()) |node| {
+        defer allocator.destroy(node);
+        defer allocator.free(node.data);
+
         const filePath = node.data;
-        const file = std.fs.openFileAbsolute(filePath, .{ .mode = .read_write }) catch |err| {
-            std.log.warn("Cannot open {s} as read/write ({})", .{ filePath, err });
+        const file = dir.openFile(filePath, .{ .mode = .read_write }) catch |err| {
+            try std.io.getStdErr().writer().print("Cannot open {s} as read/write ({})\n", .{ filePath, err });
             continue;
         };
         const stat = file.stat() catch {
-            std.log.warn("Cannot stat {s}", .{filePath});
+            try std.io.getStdErr().writer().print("Cannot stat {s}\n", .{filePath});
             file.close();
             continue;
         };
         size += stat.size;
         file.close();
-        std.fs.deleteFileAbsolute(filePath) catch {
-            std.log.warn("Could not delete {s}", .{filePath});
+        dir.deleteFile(filePath) catch |err| {
+            try std.io.getStdErr().writer().print("Could not delete {s} ({})\n", .{ filePath, err });
         };
     }
 
     while (specialFilesToDelete.popFirst()) |node| {
+        defer allocator.destroy(node);
+        defer allocator.free(node.data);
+
         const filePath = node.data;
-        std.fs.deleteFileAbsolute(filePath) catch {
-            std.log.warn("Could not delete {s}", .{filePath});
+        dir.deleteFile(filePath) catch {
+            try std.io.getStdErr().writer().print("Could not delete {s}\n", .{filePath});
         };
     }
 
     while (foldersToDelete.popFirst()) |node| {
+        defer allocator.destroy(node);
+        defer allocator.free(node.data);
+
         const filePath = node.data;
-        std.fs.deleteDirAbsolute(filePath) catch {
-            std.log.warn("Could not delete {s}", .{filePath});
+        dir.deleteDir(filePath) catch {
+            try std.io.getStdErr().writer().print("Could not delete {s}\n", .{filePath});
         };
     }
 
