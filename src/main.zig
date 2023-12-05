@@ -6,13 +6,9 @@ const Walker = @import("walker.zig").Walker;
 const StringLIFO = std.SinglyLinkedList([]const u8);
 
 pub fn main() !void {
-    // var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    // defer _ = arena.deinit();
-    // const allocator = arena.allocator();
-
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer _ = arena.deinit();
+    const allocator = arena.allocator();
 
     const options = args.parseArguments(allocator) orelse return;
     const path = options.path;
