@@ -47,7 +47,7 @@
             cp -Lr ${inputs.pcre2} lib/pcre2
             chmod +rw -R lib/pcre2
             sh fix-zig-in-pcre2.sh
-            zig build install --cache-dir $(pwd)/zig-cache --global-cache-dir $(pwd)/.cache -Doptimize=ReleaseSafe --prefix $out
+            zig build install --cache-dir $(pwd)/zig-cache --global-cache-dir $(pwd)/.cache -Doptimize=ReleaseSafe -Dcpu=native --prefix $out
           '';
         };
         apps = rec {

@@ -1,11 +1,11 @@
 const std = @import("std");
 
-pub fn build(b: *std.build.Builder) void {
+pub fn build(b: *std.Build) void {
     var target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    if (target.isLinux() and !target.isGnuLibC()) {
-        target.abi = .gnu;
+    if (target.result.os.tag == .linux and !target.result.isGnuLibC()) {
+        target.result.abi = .gnu;
     }
 
     const exe = b.addExecutable(.{
@@ -20,7 +20,7 @@ pub fn build(b: *std.build.Builder) void {
     exe.linkLibrary(pcre2);
 
     const clap = b.dependency("clap", .{}).module("clap");
-    exe.addModule("clap", clap);
+    exe.root_module.addImport("clap", clap);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

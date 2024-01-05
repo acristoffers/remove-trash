@@ -5,8 +5,8 @@ pub fn build(b: *std.Build) !void {
     var target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    if (target.isLinux() and !target.isGnuLibC()) {
-        target.abi = .gnu;
+    if (target.result.os.tag == .linux and !target.result.isGnuLibC()) {
+        target.result.abi = .gnu;
     }
 
     var flags = std.ArrayList([]const u8).init(b.allocator);

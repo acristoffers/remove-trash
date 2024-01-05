@@ -21,7 +21,7 @@ pub fn parseArguments(allocator: std.mem.Allocator) ?Options {
     };
 
     var diag = clap.Diagnostic{};
-    var res = clap.parse(clap.Help, &params, parsers, .{ .diagnostic = &diag }) catch |err| {
+    var res = clap.parse(clap.Help, &params, parsers, .{ .allocator = allocator, .diagnostic = &diag }) catch |err| {
         diag.report(std.io.getStdErr().writer(), err) catch {};
         return null;
     };

@@ -4,10 +4,10 @@
 
 linkFarm "zig-packages" [
   {
-    name = "122066d86920926a4a674adaaa10f158dc4961c2a47e588e605765455d74ca72c2ad";
+    name = "1220a5d115dc84e46b95b2ba6b3f016c4d88acd44ecb63195f9d3eec4dfcd4b3d5b8";
     path = fetchzip {
-      url = "https://github.com/Hejsil/zig-clap/archive/c394594d218c3c936547e590b461e69e6e0b20c4.tar.gz";
-      hash = "sha256-miFzgfH9svxLy+HpCyJwJbplRlACVAiLHhuNze5f0cM=";
+      url = "https://github.com/Hejsil/zig-clap/archive/6aa5180eeadde1475359dea355ce3df534e4ab4b.tar.gz";
+      hash = "sha256-+9AwxF3BbkHB1lvtEkD93XQd/cBf7pM3Nzhz37sp/LM=";
     };
   }
 ]
