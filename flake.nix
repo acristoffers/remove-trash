@@ -33,10 +33,7 @@
           name = "remove-trash";
           version = "master";
           src = gitignoreSource ./.;
-          nativeBuildInputs = with pkgs; (if isLinux then [
-            autoPatchelfHook
-            zig
-          ] else [ zig ]);
+          nativeBuildInputs = with pkgs; [ zig ];
           dontConfigure = true;
           dontInstall = true;
           doPatchElf = true;
