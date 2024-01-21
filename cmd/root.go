@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"sync"
 	"sync/atomic"
 
 	"github.com/acristoffers/remove-trash/pkg/remove_trash"
@@ -75,9 +76,17 @@ var RootCmd = &cobra.Command{
 			progressbar.OptionSetRenderBlankState(true))
 
 		var report remove_trash.ProgressReport = func(count uint64, total uint64, size uint64) {
-			countAtomic.Store(count)
 			sizeAtomic.Add(size)
-			totalAtomic.Store(total)
+			// We actually only count from 1 in 1, so we can keep track of all
+			// goroutines like this
+			if size != 0 {
+				countAtomic.Add(1)
+			} else {
+				totalAtomic.Add(1)
+			}
+
+			total = totalAtomic.Load()
+			count = countAtomic.Load()
 
 			// The progressbar will finish and disappear if total == count :/
 			if total == count {
@@ -89,16 +98,33 @@ var RootCmd = &cobra.Command{
 			bar.Set64(int64(count))
 		}
 
-		for _, path := range args {
-			removed, failed, err := remove_trash.Traverse(path, dryRun, report)
-			if err != nil {
-				bar.Clear()
-				fmt.Printf("An error occurred: %s\n", err)
+		var wg sync.WaitGroup
+		var mutex sync.Mutex
+
+		for _, pathPtr := range args {
+			var path string = pathPtr
+
+			worker := func() {
+				defer wg.Done()
+
+				removed, failed, err := remove_trash.Traverse(path, dryRun, report)
+				if err != nil {
+					bar.Clear()
+					fmt.Printf("An error occurred: %s\n", err)
+				}
+
+				mutex.Lock()
+				defer mutex.Unlock()
+
+				failedTotal = append(failed, failed...)
+				removedTotal = append(removedTotal, removed...)
 			}
 
-			failedTotal = append(failed, failed...)
-			removedTotal = append(removedTotal, removed...)
+			wg.Add(1)
+			go worker()
 		}
+
+		wg.Wait()
 
 		bar.ChangeMax64(int64(totalAtomic.Load()))
 		bar.Set64(int64(countAtomic.Load()))

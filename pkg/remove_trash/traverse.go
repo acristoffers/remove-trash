@@ -9,9 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
-
-	"golang.org/x/sync/errgroup"
 )
 
 // The type of the function that is called to report progress. The arguments
@@ -20,9 +19,9 @@ import (
 // as files are discovered.
 type ProgressReport func(uint64, uint64, uint64)
 
-// Used so we just compile the regexes once.
+// Internal state for each call to Traverse
 type internalState struct {
-	regexes []*regexp.Regexp
+	regexes []*regexp.Regexp // The compiled regexes
 }
 
 // Instead of throwing an error and stopping, the errors are collected and
@@ -106,7 +105,24 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 		return nil, nil, err
 	}
 
-	g := new(errgroup.Group)
+	stat, err := os.Lstat(absolutePath)
+	if err != nil {
+		return nil, nil, err
+	} else if !stat.IsDir() {
+		if stat.Mode().IsRegular() && state.isTrash(absolutePath) {
+			if err := os.RemoveAll(absolutePath); err != nil {
+				failedPaths = append(failedPaths, FailedPath{absolutePath, err})
+			} else {
+				pr(1, 1, uint64(stat.Size()))
+			}
+
+			return removedPaths, failedPaths, nil
+		} else {
+			return removedPaths, failedPaths, nil
+		}
+	}
+
+	var wg sync.WaitGroup
 
 	var total atomic.Uint64
 	var count atomic.Uint64
@@ -121,7 +137,7 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 
 		if err != nil {
 			failedPaths = append(failedPaths, FailedPath{dirPath, err})
-			if d.IsDir() {
+			if d != nil && d.IsDir() {
 				return fs.SkipDir
 			} else {
 				return nil
@@ -134,7 +150,9 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 
 			removedPaths = append(removedPaths, dirPathAbsolute)
 
-			g.Go(func() error {
+			worker := func() {
+				defer wg.Done()
+
 				totalSize := uint64(0)
 				readSize := func(path string, file os.FileInfo, err error) error {
 					if file.Mode().IsRegular() {
@@ -155,9 +173,10 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 						pr(count.Load(), total.Load(), totalSize)
 					}
 				}
+			}
 
-				return nil
-			})
+			wg.Add(1)
+			go worker()
 
 			if d.IsDir() {
 				return fs.SkipDir
@@ -171,7 +190,7 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 		return nil, nil, err
 	}
 
-	g.Wait()
+	wg.Wait()
 
 	return removedPaths, failedPaths, nil
 }

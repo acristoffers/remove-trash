@@ -25,7 +25,7 @@
           pname = "remove-trash";
           version = (builtins.readFile ./pkg/remove_trash/version);
           src = gitignoreSource ./.;
-          vendorHash = "sha256-Gdn5XUWBu09mcL1JZKXy18imggW9xz6NRqiQIyLW5vY=";
+          vendorHash = "sha256-oOngWHdhHezh6Zsvo5k/jPtC6hd7Y+A3UfHkZ78mE4g=";
           installPhase = ''
             runHook preInstall
             mkdir -p $out/bin
