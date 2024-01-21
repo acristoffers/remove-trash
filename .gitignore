@@ -1,6 +1,2 @@
-# Zig magic stuff
-zig-*
-debug
-release
-*.zlsreplay
 result
+build
