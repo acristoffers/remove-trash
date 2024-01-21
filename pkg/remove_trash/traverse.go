@@ -36,7 +36,6 @@ type FailedPath struct {
 // Compiles the regexes that are used to decide if a file/folder is trash or
 // not. It matches against basename, that is, only the file name, without path.
 func (self *internalState) compileRegexes() error {
-	self.regexes = []*regexp.Regexp{}
 	regexes := []string{
 		`^\.DS_Store$`,
 		`^\.cache$`,
@@ -55,6 +54,8 @@ func (self *internalState) compileRegexes() error {
 		`\.bak$`,
 		`^~`,
 	}
+
+	self.regexes = make([]*regexp.Regexp, 0, len(regexes))
 
 	for _, regex := range regexes {
 		re, err := regexp.Compile(regex)
@@ -83,10 +84,10 @@ func (self *internalState) isTrash(name string) bool {
 // If dryRun is true, do not remove any file.
 // pr is called to report progress.
 func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPath, error) {
-	var removedPaths []string
-	var failedPaths []FailedPath
+	var removedPaths []string = make([]string, 0, 1000)
+	var failedPaths []FailedPath = make([]FailedPath, 0, 1000)
 
-  homePath, err := os.UserHomeDir()
+	homePath, err := os.UserHomeDir()
 	if err != nil {
 		return nil, nil, err
 	}
