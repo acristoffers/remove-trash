@@ -45,6 +45,12 @@ var RootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		noErrors, err := cmd.Flags().GetBool("no-error")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not parse options: %s\n", err)
+			os.Exit(1)
+		}
+
 		if version {
 			fmt.Printf("Version %s", remove_trash.Version)
 			return
@@ -103,7 +109,7 @@ var RootCmd = &cobra.Command{
 				fmt.Printf("Removed %s\n", path)
 			}
 			fmt.Printf("Would remove %d files for a total of %s\n", len(removedTotal), bytesize.New(float64(sizeAtomic.Load())))
-		} else {
+		} else if !noErrors {
 			for _, failed := range failedTotal {
 				fmt.Fprintln(os.Stderr, failed.Err)
 			}
@@ -121,4 +127,5 @@ func Execute() {
 func init() {
 	RootCmd.Flags().BoolP("version", "v", false, "Prints the version.")
 	RootCmd.Flags().BoolP("dry-run", "d", false, "Shows what would be done, but does not do anything.")
+	RootCmd.Flags().BoolP("no-error", "n", false, "Do not print file delete errors at the end.")
 }

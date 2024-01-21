@@ -17,14 +17,6 @@
  * 	- *.slxc
  * 	- *.bak
  * 	- ~*
- * 
- * Usage:
- *   remove-trash [PATH] [flags]
- * 
- * Flags:
- *   -d, --dry-run   Shows what would be done, but does not do anything.
- *   -h, --help      help for remove-trash
- *   -v, --version   Prints the version.
  */
 package main
 
