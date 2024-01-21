@@ -1,3 +1,6 @@
+// Package remove_trash exports the Traverse function, which traverses a path
+// and removes all trash files and folders in it, reporting progress and
+// calculating the size freed by the operation.
 package remove_trash
 
 import (
@@ -11,19 +14,28 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// The type of the function that is called to report progress. The arguments
+// are, in order, the current count, the current total and the number of bytes
+// freed by this operation (that is, so far). The total can and does change
+// as files are discovered.
 type ProgressReport func(uint64, uint64, uint64)
 
-type InternalState struct {
+// Used so we just compile the regexes once.
+type internalState struct {
 	regexes []*regexp.Regexp
-	removed []string
 }
 
+// Instead of throwing an error and stopping, the errors are collected and
+// returned at the end. This represents files/folders which could not be deleted
+// by os.RemoveAll
 type FailedPath struct {
 	Path string
 	Err  error
 }
 
-func (self *InternalState) compileRegexes() error {
+// Compiles the regexes that are used to decide if a file/folder is trash or
+// not. It matches against basename, that is, only the file name, without path.
+func (self *internalState) compileRegexes() error {
 	self.regexes = []*regexp.Regexp{}
 	regexes := []string{
 		`^\.DS_Store$`,
@@ -57,7 +69,7 @@ func (self *InternalState) compileRegexes() error {
 }
 
 // Uses regex to determine if a given file name is a trash file name
-func (self *InternalState) isTrash(name string) bool {
+func (self *internalState) isTrash(name string) bool {
 	for _, regex := range self.regexes {
 		if regex.MatchString(name) {
 			return true
@@ -69,11 +81,12 @@ func (self *InternalState) isTrash(name string) bool {
 
 // Traverses path, returning a list of files/folders that were removed.
 // If dryRun is true, do not remove any file.
+// pr is called to report progress.
 func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPath, error) {
-	removedPaths := []string{}
-	failedPaths := []FailedPath{}
+	var removedPaths []string
+	var failedPaths []FailedPath
 
-	homePath, err := os.UserHomeDir()
+  homePath, err := os.UserHomeDir()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -87,7 +100,7 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 		return nil, nil, err
 	}
 
-	state := InternalState{}
+	state := internalState{}
 	if err := state.compileRegexes(); err != nil {
 		return nil, nil, err
 	}

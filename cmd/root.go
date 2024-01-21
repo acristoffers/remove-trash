@@ -34,27 +34,27 @@ var RootCmd = &cobra.Command{
 		if version {
 			fmt.Printf("Version %s", remove_trash.Version)
 			return
-		}
-
-		if !version && !dryRun && len(args) == 0 {
+		} else if len(args) == 0 {
 			cmd.Help()
+			return
 		}
 
-		removedTotal := []string{}
-		failedTotal := []remove_trash.FailedPath{}
+		var removedTotal []string
+		var failedTotal []remove_trash.FailedPath
 
 		var countAtomic atomic.Uint64
 		var sizeAtomic atomic.Uint64
 		var totalAtomic atomic.Uint64
 
-		bar := progressbar.NewOptions(1,
+		var bar *progressbar.ProgressBar = progressbar.NewOptions(1,
 			progressbar.OptionSetWriter(os.Stdout),
 			progressbar.OptionSetDescription("Removed"),
 			progressbar.OptionThrottle(0),
 			progressbar.OptionShowCount(),
 			progressbar.OptionFullWidth(),
 			progressbar.OptionSetRenderBlankState(true))
-		report := func(count uint64, total uint64, size uint64) {
+
+		var report remove_trash.ProgressReport = func(count uint64, total uint64, size uint64) {
 			countAtomic.Store(count)
 			sizeAtomic.Add(size)
 			totalAtomic.Store(total)
