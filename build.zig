@@ -1,13 +1,15 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     var target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    target = if (target.result.os.tag == .linux)
-        b.resolveTargetQuery(.{ .abi = .musl })
-    else
-        b.host;
+    if (target.result.os.tag == .linux) {
+        var targetQuery: std.Target.Query = target.query;
+        targetQuery.abi = .musl;
+        targetQuery.glibc_version = null;
+        target = b.resolveTargetQuery(targetQuery);
+    }
 
     const exe = b.addExecutable(.{
         .name = "remove-trash",
@@ -18,6 +20,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     const pcre2 = b.dependency("pcre2", .{}).artifact("pcre2");
+    pcre2.root_module.resolved_target = target;
     exe.linkLibrary(pcre2);
 
     const clap = b.dependency("clap", .{}).module("clap");

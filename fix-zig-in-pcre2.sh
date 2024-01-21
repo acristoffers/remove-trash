@@ -5,10 +5,12 @@ pub fn build(b: *std.Build) !void {
     var target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    target = if (target.result.os.tag == .linux)
-        b.resolveTargetQuery(.{ .abi = .musl })
-    else
-        b.host;
+    if (target.result.os.tag == .linux) {
+        var targetQuery: std.Target.Query = target.query;
+        targetQuery.abi = .musl;
+        targetQuery.glibc_version = null;
+        target = b.resolveTargetQuery(targetQuery);
+    }
 
     var flags = std.ArrayList([]const u8).init(b.allocator);
     defer flags.deinit();
