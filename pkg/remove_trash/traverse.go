@@ -21,7 +21,8 @@ type ProgressReport func(uint64, uint64, uint64)
 
 // Internal state for each call to Traverse
 type internalState struct {
-	regexes []*regexp.Regexp // The compiled regexes
+	removeRegexes []*regexp.Regexp // The compiled regexes of items to remove
+	ignoreRegexes []*regexp.Regexp // The compiled regexes of items to ignore
 }
 
 // Instead of throwing an error and stopping, the errors are collected and
@@ -35,7 +36,7 @@ type FailedPath struct {
 // Compiles the regexes that are used to decide if a file/folder is trash or
 // not. It matches against basename, that is, only the file name, without path.
 func (self *internalState) compileRegexes() error {
-	regexes := []string{
+	removeRegexes := []string{
 		`^\.DS_Store$`,
 		`^\.cache$`,
 		`^\.gradle$`,
@@ -54,15 +55,33 @@ func (self *internalState) compileRegexes() error {
 		`^~`,
 	}
 
-	self.regexes = make([]*regexp.Regexp, 0, len(regexes))
+	ignoreRegexes := []string{
+		`^\.git$`,
+		`^\.var$`,
+		`^Steam$`,
+		`^\.steam$`,
+		`^containers$`,
+	}
 
-	for _, regex := range regexes {
+	self.removeRegexes = make([]*regexp.Regexp, 0, len(removeRegexes))
+	self.ignoreRegexes = make([]*regexp.Regexp, 0, len(removeRegexes))
+
+	for _, regex := range removeRegexes {
 		re, err := regexp.Compile(regex)
 		if err != nil {
 			return err
 		}
 
-		self.regexes = append(self.regexes, re)
+		self.removeRegexes = append(self.removeRegexes, re)
+	}
+
+	for _, regex := range ignoreRegexes {
+		re, err := regexp.Compile(regex)
+		if err != nil {
+			return err
+		}
+
+		self.ignoreRegexes = append(self.ignoreRegexes, re)
 	}
 
 	return nil
@@ -70,7 +89,18 @@ func (self *internalState) compileRegexes() error {
 
 // Uses regex to determine if a given file name is a trash file name
 func (self *internalState) isTrash(name string) bool {
-	for _, regex := range self.regexes {
+	for _, regex := range self.removeRegexes {
+		if regex.MatchString(name) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Uses regex to determine if a given file/folder should be ignored
+func (self *internalState) shouldIgnore(name string) bool {
+	for _, regex := range self.ignoreRegexes {
 		if regex.MatchString(name) {
 			return true
 		}
@@ -144,7 +174,9 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 			}
 		}
 
-		if state.isTrash(d.Name()) {
+		if state.shouldIgnore(d.Name()) {
+			return fs.SkipDir
+		} else if state.isTrash(d.Name()) {
 			total.Add(1)
 			pr(count.Load(), total.Load(), 0)
 
