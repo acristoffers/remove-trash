@@ -165,8 +165,6 @@ func Traverse(path string, dryRun bool, pr chan<- ProgressReport) ([]string, []F
 	total.Store(0)
 	count.Store(0)
 
-	pr <- ProgressReport{0, 1, 0}
-
 	walkFn := func(dirPath string, d fs.DirEntry, err error) error {
 		dirPathAbsolute := filepath.Join(path, dirPath)
 
