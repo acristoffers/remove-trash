@@ -75,39 +75,19 @@ var RootCmd = &cobra.Command{
 			progressbar.OptionFullWidth(),
 			progressbar.OptionSetRenderBlankState(true))
 
-		var report remove_trash.ProgressReport = func(count uint64, total uint64, size uint64) {
-			sizeAtomic.Add(size)
-			// We actually only count from 1 in 1, so we can keep track of all
-			// goroutines like this
-			if size != 0 {
-				countAtomic.Add(1)
-			} else {
-				totalAtomic.Add(1)
-			}
-
-			total = totalAtomic.Load()
-			count = countAtomic.Load()
-
-			// The progressbar will finish and disappear if total == count :/
-			if total == count {
-				count -= 1
-			}
-
-			bar.ChangeMax64(int64(total))
-			bar.Describe(fmt.Sprintf("Removed %s", bytesize.New(float64(sizeAtomic.Load()))))
-			bar.Set64(int64(count))
-		}
-
 		var wg sync.WaitGroup
 		var mutex sync.Mutex
+		var channels []<-chan remove_trash.ProgressReport
 
 		for _, pathPtr := range args {
 			var path string = pathPtr
+			channel := make(chan remove_trash.ProgressReport, 10)
+			channels = append(channels, channel)
 
 			worker := func() {
 				defer wg.Done()
 
-				removed, failed, err := remove_trash.Traverse(path, dryRun, report)
+				removed, failed, err := remove_trash.Traverse(path, dryRun, channel)
 				if err != nil {
 					bar.Clear()
 					fmt.Printf("An error occurred: %s\n", err)
@@ -122,6 +102,30 @@ var RootCmd = &cobra.Command{
 
 			wg.Add(1)
 			go worker()
+		}
+
+		for pr := range merge(channels...) {
+			sizeAtomic.Add(pr.Bytes)
+
+			// We actually only count from 1 in 1, so we can keep track of all
+			// goroutines like this
+			if pr.Bytes != 0 {
+				countAtomic.Add(1)
+			} else {
+				totalAtomic.Add(1)
+			}
+
+			total := totalAtomic.Load()
+			count := countAtomic.Load()
+
+			// The progressbar will finish and disappear if total == count :/
+			if total == count {
+				count -= 1
+			}
+
+			bar.ChangeMax64(int64(total))
+			bar.Describe(fmt.Sprintf("Removed %s", bytesize.New(float64(sizeAtomic.Load()))))
+			bar.Set64(int64(count))
 		}
 
 		wg.Wait()
@@ -154,4 +158,27 @@ func init() {
 	RootCmd.Flags().BoolP("version", "v", false, "Prints the version.")
 	RootCmd.Flags().BoolP("dry-run", "d", false, "Shows what would be done, but does not do anything.")
 	RootCmd.Flags().BoolP("no-error", "n", false, "Do not print file delete errors at the end.")
+}
+
+func merge(cs ...<-chan remove_trash.ProgressReport) <-chan remove_trash.ProgressReport {
+	zip := make(chan remove_trash.ProgressReport, 100)
+
+	var wg sync.WaitGroup
+	wg.Add(len(cs))
+
+	for _, c := range cs {
+		go func(c <-chan remove_trash.ProgressReport) {
+			for v := range c {
+				zip <- v
+			}
+			wg.Done()
+		}(c)
+	}
+
+	go func() {
+		wg.Wait()
+		close(zip)
+	}()
+
+	return zip
 }

@@ -17,7 +17,11 @@ import (
 // are, in order, the current count, the current total and the number of bytes
 // freed by this operation (that is, so far). The total can and does change
 // as files are discovered.
-type ProgressReport func(uint64, uint64, uint64)
+type ProgressReport struct {
+	Count uint64
+	Total uint64
+	Bytes uint64
+}
 
 // Internal state for each call to Traverse
 type internalState struct {
@@ -112,7 +116,9 @@ func (self *internalState) shouldIgnore(name string) bool {
 // Traverses path, returning a list of files/folders that were removed.
 // If dryRun is true, do not remove any file.
 // pr is called to report progress.
-func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPath, error) {
+func Traverse(path string, dryRun bool, pr chan<- ProgressReport) ([]string, []FailedPath, error) {
+  defer close(pr)
+
 	var removedPaths []string = make([]string, 0, 1000)
 	var failedPaths []FailedPath = make([]FailedPath, 0, 1000)
 
@@ -143,9 +149,8 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 			if err := os.RemoveAll(absolutePath); err != nil {
 				failedPaths = append(failedPaths, FailedPath{absolutePath, err})
 			} else {
-				pr(1, 1, uint64(stat.Size()))
+				pr <- ProgressReport{1, 1, uint64(stat.Size())}
 			}
-
 			return removedPaths, failedPaths, nil
 		} else {
 			return removedPaths, failedPaths, nil
@@ -160,7 +165,7 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 	total.Store(0)
 	count.Store(0)
 
-	pr(0, 1, 0)
+	pr <- ProgressReport{0, 1, 0}
 
 	walkFn := func(dirPath string, d fs.DirEntry, err error) error {
 		dirPathAbsolute := filepath.Join(path, dirPath)
@@ -178,7 +183,7 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 			return fs.SkipDir
 		} else if state.isTrash(d.Name()) {
 			total.Add(1)
-			pr(count.Load(), total.Load(), 0)
+			pr <- ProgressReport{count.Load(), total.Load(), 0}
 
 			removedPaths = append(removedPaths, dirPathAbsolute)
 
@@ -196,13 +201,13 @@ func Traverse(path string, dryRun bool, pr ProgressReport) ([]string, []FailedPa
 
 				if dryRun {
 					count.Add(1)
-					pr(count.Load(), total.Load(), totalSize)
+					pr <- ProgressReport{count.Load(), total.Load(), totalSize}
 				} else {
 					if err := os.RemoveAll(dirPathAbsolute); err != nil {
 						failedPaths = append(failedPaths, FailedPath{dirPathAbsolute, err})
 					} else {
 						count.Add(1)
-						pr(count.Load(), total.Load(), totalSize)
+						pr <- ProgressReport{count.Load(), total.Load(), totalSize}
 					}
 				}
 			}
