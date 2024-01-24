@@ -117,7 +117,7 @@ func (self *internalState) shouldIgnore(name string) bool {
 // If dryRun is true, do not remove any file.
 // pr is called to report progress.
 func Traverse(path string, dryRun bool, pr chan<- ProgressReport) ([]string, []FailedPath, error) {
-  defer close(pr)
+	defer close(pr)
 
 	var removedPaths []string = make([]string, 0, 1000)
 	var failedPaths []FailedPath = make([]FailedPath, 0, 1000)
@@ -144,17 +144,27 @@ func Traverse(path string, dryRun bool, pr chan<- ProgressReport) ([]string, []F
 	stat, err := os.Lstat(absolutePath)
 	if err != nil {
 		return nil, nil, err
-	} else if !stat.IsDir() {
-		if stat.Mode().IsRegular() && state.isTrash(absolutePath) {
-			if err := os.RemoveAll(absolutePath); err != nil {
-				failedPaths = append(failedPaths, FailedPath{absolutePath, err})
-			} else {
-				pr <- ProgressReport{1, 1, uint64(stat.Size())}
+	}
+
+	if state.isTrash(stat.Name()) {
+		totalSize := uint64(0)
+		readSize := func(path string, file os.FileInfo, err error) error {
+			if file.Mode().IsRegular() {
+				totalSize += uint64(file.Size())
 			}
-			return removedPaths, failedPaths, nil
-		} else {
-			return removedPaths, failedPaths, nil
+			return nil
 		}
+		filepath.Walk(absolutePath, readSize)
+
+		if err := os.RemoveAll(absolutePath); err != nil {
+			failedPaths = append(failedPaths, FailedPath{absolutePath, err})
+		} else {
+			pr <- ProgressReport{1, 1, totalSize}
+		}
+
+		return removedPaths, failedPaths, nil
+	} else if state.shouldIgnore(stat.Name()) {
+		return removedPaths, failedPaths, nil
 	}
 
 	var wg sync.WaitGroup
