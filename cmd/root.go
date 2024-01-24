@@ -140,6 +140,7 @@ var RootCmd = &cobra.Command{
 			}
 			fmt.Printf("Would remove %d files for a total of %s\n", len(removedTotal), bytesize.New(float64(sizeAtomic.Load())))
 		} else if !noErrors {
+			fmt.Println("")
 			for _, failed := range failedTotal {
 				fmt.Fprintln(os.Stderr, failed.Err)
 			}
