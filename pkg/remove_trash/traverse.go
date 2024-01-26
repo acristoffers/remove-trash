@@ -52,7 +52,7 @@ func Traverse(path string, dryRun bool, pr chan<- ProgressReport) ([]string, []F
 		return nil, nil, err
 	}
 
-	if filter.isTrash(stat.Name()) {
+	if filter.shouldDelete(stat.Name()) {
 		totalSize := uint64(stat.Size())
 
 		if stat.IsDir() {

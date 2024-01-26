@@ -9,7 +9,7 @@ import (
 )
 
 type walkerFilter interface {
-	isTrash(name string) bool
+	shouldDelete(name string) bool
 	shouldIgnore(name string) bool
 }
 
@@ -35,7 +35,7 @@ func walkFiltered(path string, filter walkerFilter, remove chan<- string, failed
 		basename := d.Name()
 
 		if filter.shouldIgnore(basename) {
-		} else if filter.isTrash(basename) {
+		} else if filter.shouldDelete(basename) {
 			remove <- filepath.Join(path, basename)
 		} else if d.IsDir() {
 			counter.Add(1)

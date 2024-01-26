@@ -64,7 +64,7 @@ func (self *regexFilter) compileRegexes() error {
 }
 
 // Uses regex to determine if a given file name is a trash file name
-func (self regexFilter) isTrash(name string) bool {
+func (self regexFilter) shouldDelete(name string) bool {
 	return anyMatches(name, self.removeRegexes)
 }
 
