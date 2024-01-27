@@ -1,4 +1,6 @@
 {
+  description = "Removes files like .DS_Store and Thumb.db from the disk";
+
   inputs =
     {
       nixpkgs.url = github:NixOS/nixpkgs/nixpkgs-unstable;
