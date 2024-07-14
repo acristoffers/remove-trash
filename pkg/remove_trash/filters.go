@@ -18,6 +18,7 @@ func (self *regexFilter) compileRegexes() error {
 		`^\.mypy_cache$`,
 		`^\.sass-cache$`,
 		`^\.textpadtmp$`,
+		`^\.output.html$`,
 		`^Thumbs.db$`,
 		`^__pycache__$`,
 		`^_build$`,
