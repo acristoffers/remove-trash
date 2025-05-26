@@ -23,11 +23,15 @@
       rec {
         formatter = pkgs.nixpkgs-fmt;
         packages.default = packages.remove-trash;
-        packages.remove-trash = pkgs.buildGoModule {
+        packages.remove-trash = pkgs.buildGoModule rec {
           pname = "remove-trash";
           version = (builtins.readFile ./pkg/remove_trash/version);
+          buildInputs = with pkgs; [ glibc.static ];
+          CFLAGS = "-I${pkgs.glibc.dev}/include";
+          LDFLAGS = "-L${pkgs.glibc}/lib";
           src = gitignoreSource ./.;
-          vendorHash = "sha256-v+FwYlh7pFyIlnYkolAW4e7ETgEq/azcQtozi9u5hjY=";
+          vendorHash = "sha256-ZFsDzTGAC/kYmxobrOoRAQwP102+a6QeHuqKB0/F3p4=";
+          ldflags = [ "-s" "-w" "-linkmode external" "-extldflags '-static'" ];
           installPhase = ''
             runHook preInstall
             mkdir -p $out/bin
@@ -35,7 +39,6 @@
             $GOPATH/bin/docgen
             cp -r build/share $out/share
             cp $GOPATH/bin/remove-trash $out/bin/remove-trash
-            strip $out/bin/remove-trash
             runHook postInstall
           '';
         };
